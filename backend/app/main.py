@@ -15,8 +15,34 @@ import hmac
 import base64
 import struct
 import smtplib
+import logging
 from email.message import EmailMessage
 from urllib.parse import quote
+
+logger = logging.getLogger(__name__)
+
+# Load local settings from backend/.env when running locally. Hosting-provided
+# environment variables take precedence over this file.
+def load_local_env() -> None:
+    current = Path(__file__).resolve().parent
+    for env_file in (current / '.env', current.parent / '.env', current.parent.parent / '.env'):
+        try:
+            lines = env_file.read_text(encoding='utf-8').splitlines()
+        except FileNotFoundError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith('#') or '=' not in line:
+                continue
+            key, value = line.split('=', 1)
+            key, value = key.strip(), value.strip()
+            if value and value[0:1] in ('"', "'") and value[-1:] == value[0:1]:
+                value = value[1:-1]
+            if key:
+                os.environ.setdefault(key, value)
+        break
+
+load_local_env()
 
 # Configuration & Constants
 ADMIN_INVITE_CODE = os.environ.get('ADMIN_INVITE_CODE', 'AURELIA-ADMIN-2026')
@@ -61,6 +87,8 @@ app.add_middleware(
     allow_origins=[
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
         'http://localhost:3000',
     ],
     allow_credentials=True,
@@ -442,7 +470,10 @@ def forgot_password(req: PasswordResetRequest):
     # Require mail configuration before looking up the address, so the response
     # remains the same for registered and unregistered accounts.
     if not all(os.environ.get(key) for key in ('SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD')):
-        raise HTTPException(status_code=503, detail='Password reset email is not configured')
+        raise HTTPException(
+            status_code=503,
+            detail='Password reset email is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASSWORD in backend/.env, then restart the backend.',
+        )
     conn = get_db()
     try:
         row = conn.execute(
@@ -453,20 +484,20 @@ def forgot_password(req: PasswordResetRequest):
             raw_token = secrets.token_urlsafe(32)
             token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
             expires = (datetime.now(timezone.utc) + timedelta(minutes=60)).isoformat()
+            frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+            reset_url = f'{frontend_url}/#/reset-password?token={quote(raw_token)}'
+            try:
+                send_password_reset_email(row['email'], reset_url)
+            except Exception as exc:
+                logger.exception('Password reset email delivery failed')
+                raise HTTPException(status_code=503, detail='Could not send reset email. Check the SMTP settings.') from exc
+            # Replace an existing reset token only after its replacement is sent.
             conn.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', (row['id'],))
             conn.execute(
                 'INSERT INTO password_reset_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
                 (token_hash, row['id'], expires),
             )
             conn.commit()
-            frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
-            reset_url = f'{frontend_url}/#/reset-password?token={quote(raw_token)}'
-            try:
-                send_password_reset_email(row['email'], reset_url)
-            except Exception as exc:
-                conn.execute('DELETE FROM password_reset_tokens WHERE token_hash = ?', (token_hash,))
-                conn.commit()
-                raise HTTPException(status_code=503, detail='Could not send reset email. Check the SMTP settings.') from exc
         return {'message': 'If an account exists for that email, a password reset link has been sent.'}
     finally:
         conn.close()
