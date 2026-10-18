@@ -19,13 +19,35 @@ from email.message import EmailMessage
 from urllib.parse import quote
 
 # Configuration & Constants
-SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
 ADMIN_INVITE_CODE = os.environ.get('ADMIN_INVITE_CODE', 'AURELIA-ADMIN-2026')
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
 DATA = Path(__file__).resolve().parent.parent / 'data'
 DATA.mkdir(exist_ok=True)
+
+def get_secret_key() -> str:
+    configured_key = os.environ.get('SECRET_KEY')
+    if configured_key:
+        return configured_key
+
+    key_file = DATA / '.secret_key'
+    try:
+        stored_key = key_file.read_text(encoding='utf-8').strip()
+        if stored_key:
+            return stored_key
+    except FileNotFoundError:
+        pass
+
+    generated_key = secrets.token_hex(32)
+    try:
+        with key_file.open('x', encoding='utf-8') as secret_file:
+            secret_file.write(generated_key)
+        return generated_key
+    except FileExistsError:
+        return key_file.read_text(encoding='utf-8').strip()
+
+SECRET_KEY = get_secret_key()
 DB_PATH = DATA / 'aurelia.db'
 DEST = DATA / 'destinations.json'
 ENQ = DATA / 'enquiries.json'
