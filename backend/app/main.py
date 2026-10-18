@@ -423,7 +423,10 @@ def forgot_password(req: PasswordResetRequest):
         raise HTTPException(status_code=503, detail='Password reset email is not configured')
     conn = get_db()
     try:
-        row = conn.execute('SELECT id, email FROM users WHERE email = ?', (req.email,)).fetchone()
+        row = conn.execute(
+            'SELECT id, email FROM users WHERE lower(trim(email)) = ?',
+            (req.email,),
+        ).fetchone()
         if row:
             raw_token = secrets.token_urlsafe(32)
             token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
