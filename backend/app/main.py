@@ -14,6 +14,9 @@ import hashlib
 import hmac
 import base64
 import struct
+import smtplib
+from email.message import EmailMessage
+from urllib.parse import quote
 
 # Configuration & Constants
 SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
@@ -80,6 +83,14 @@ def init_db():
       last_name TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'customer',
       created_at TEXT NOT NULL
+    );
+    ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     ''')
     cursor.execute('''
@@ -279,6 +290,21 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class PasswordResetRequest(BaseModel):
+    email: str
+
+    @field_validator('email')
+    @classmethod
+    def validate_email(cls, value: str):
+        value = value.strip().lower()
+        if '@' not in value or '.' not in value.rsplit('@', 1)[-1]:
+            raise ValueError('Enter a valid email address')
+        return value
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str
+    password: str
+
 class MessageCreate(BaseModel):
     subject: str
     destination: str = ''
@@ -367,6 +393,96 @@ def chat_reply(message: str) -> str:
     return 'I can help with Aurelia services, offers, planning style, best time to travel, and destinations like Japan, Sri Lanka, Amalfi Coast, Namibia, Patagonia, and Maldives. Ask me about a destination, travel month, honeymoon, family trip, safari, beach escape, or how to start planning.'
 
 # Auth Endpoints
+def send_password_reset_email(recipient: str, reset_url: str) -> None:
+    host = os.environ.get('SMTP_HOST')
+    username = os.environ.get('SMTP_USER')
+    password = os.environ.get('SMTP_PASSWORD')
+    sender = os.environ.get('SMTP_FROM') or username
+    if not all((host, username, password, sender)):
+        raise RuntimeError('SMTP email settings are incomplete')
+
+    message = EmailMessage()
+    message['Subject'] = 'Reset your Aurelia Travel password'
+    message['From'] = sender
+    message['To'] = recipient
+    message.set_content(
+        f"We received a request to reset your Aurelia Travel password.\n\n"
+        f"Choose a new password using this link (valid for 60 minutes):\n{reset_url}\n\n"
+        "If you did not request this, you can ignore this email."
+    )
+    with smtplib.SMTP(host, int(os.environ.get('SMTP_PORT', '587')), timeout=15) as server:
+        server.starttls()
+        server.login(username, password)
+        server.send_message(message)
+
+@app.post('/api/auth/forgot-password')
+def forgot_password(req: PasswordResetRequest):
+    # Require mail configuration before looking up the address, so the response
+    # remains the same for registered and unregistered accounts.
+    if not all(os.environ.get(key) for key in ('SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD')):
+        raise HTTPException(status_code=503, detail='Password reset email is not configured')
+    conn = get_db()
+    try:
+        row = conn.execute('SELECT id, email FROM users WHERE email = ?', (req.email,)).fetchone()
+        if row:
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+            expires = (datetime.now(timezone.utc) + timedelta(minutes=60)).isoformat()
+            conn.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', (row['id'],))
+            conn.execute(
+                'INSERT INTO password_reset_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)',
+                (token_hash, row['id'], expires),
+            )
+            conn.commit()
+            frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
+            reset_url = f'{frontend_url}/reset-password?token={quote(raw_token)}'
+            try:
+                send_password_reset_email(row['email'], reset_url)
+            except Exception as exc:
+                conn.execute('DELETE FROM password_reset_tokens WHERE token_hash = ?', (token_hash,))
+                conn.commit()
+                raise HTTPException(status_code=503, detail='Could not send reset email. Check the SMTP settings.') from exc
+        return {'message': 'If an account exists for that email, a password reset link has been sent.'}
+    finally:
+        conn.close()
+
+@app.post('/api/auth/reset-password')
+def reset_password(req: PasswordResetConfirmRequest):
+    if len(req.password) < 8:
+        raise HTTPException(status_code=400, detail='Password must be at least 8 characters long')
+    token_hash = hashlib.sha256(req.token.encode('utf-8')).hexdigest()
+    now = datetime.now(timezone.utc)
+    conn = get_db()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute(
+            'SELECT user_id, expires_at FROM password_reset_tokens WHERE token_hash = ?',
+            (token_hash,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail='This reset link is invalid or has expired.')
+        try:
+            expires = datetime.fromisoformat(row['expires_at'])
+        except ValueError:
+            expires = now
+        if expires <= now:
+            conn.execute('DELETE FROM password_reset_tokens WHERE token_hash = ?', (token_hash,))
+            conn.commit()
+            raise HTTPException(status_code=400, detail='This reset link is invalid or has expired.')
+        conn.execute(
+            'UPDATE users SET password_hash = ? WHERE id = ?',
+            (hash_password(req.password), row['user_id']),
+        )
+        conn.execute('DELETE FROM password_reset_tokens WHERE user_id = ?', (row['user_id'],))
+        conn.commit()
+        return {'message': 'Your password has been reset. You can now sign in.'}
+    except Exception:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 @app.post('/api/auth/signup')
 def signup(req: SignupRequest):
     if len(req.password) < 8:

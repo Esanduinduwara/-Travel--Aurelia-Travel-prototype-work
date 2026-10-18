@@ -38,6 +38,22 @@ uvicorn app.main:app --reload --port 8000
 API: http://localhost:8000
 Swagger docs: http://localhost:8000/docs
 
+#### Password reset email
+
+The login page includes a password reset flow. Configure SMTP before starting the backend; for Gmail, use a Gmail App Password (never your regular Gmail password). Copy `backend/.env.example` as a reference and set these environment variables in the terminal that launches Uvicorn:
+
+```powershell
+$env:SMTP_HOST = "smtp.gmail.com"
+$env:SMTP_PORT = "587"
+$env:SMTP_USER = "your-sender@gmail.com"
+$env:SMTP_PASSWORD = "your-16-character-app-password"
+$env:SMTP_FROM = "your-sender@gmail.com"
+$env:FRONTEND_URL = "http://localhost:5173"
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+The recipient can be any account email, including Gmail. Reset links expire after 60 minutes and can be used once. For a deployed site, set `FRONTEND_URL` to its public HTTPS address and keep SMTP credentials in the hosting provider's secret environment settings.
+
 ### 2. Frontend
 Open another terminal in `frontend`:
 
