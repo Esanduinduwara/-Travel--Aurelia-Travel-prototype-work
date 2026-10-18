@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-const API = 'http://localhost:8000/api';
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const img = (q, w = 1200) => `https://images.unsplash.com/photo-${q}?auto=format&fit=crop&w=${w}&q=85`;
 
 const DESTINATIONS = {
