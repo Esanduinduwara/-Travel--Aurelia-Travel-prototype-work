@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, useNavigate, useLocation, useParams, Navigate, Link } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, useLocation, useParams, Navigate, Link } from 'react-router-dom';
 import {
   Menu, X, Search, ArrowUpRight, Compass, Sparkles, MapPin, Send, Camera, MessageCircle,
   CirclePlay, Play, ShieldCheck, Clock3, Globe2, CalendarDays, Plane, Route as RouteIcon,
@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import './styles.css';
 
-const API = 'http://localhost:8000/api';
+const API = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000/api' : '/api');
 const img = (q, w = 1200) => `https://images.unsplash.com/photo-${q}?auto=format&fit=crop&w=${w}&q=85`;
 
 const DESTINATIONS = {
@@ -405,7 +405,8 @@ function ForgotPasswordPage() {
 }
 
 function ResetPasswordPage() {
-  const token = new URLSearchParams(window.location.search).get('token') || '';
+  const location = useLocation();
+  const token = new URLSearchParams(location.search).get('token') || '';
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -2570,9 +2571,9 @@ function App() {
 
 /* Root Render */
 createRoot(document.getElementById('root')).render(
-  <BrowserRouter>
+  <HashRouter>
     <AuthProvider>
       <App />
     </AuthProvider>
-  </BrowserRouter>
+  </HashRouter>
 );

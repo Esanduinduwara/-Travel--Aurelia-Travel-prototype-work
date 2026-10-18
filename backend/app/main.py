@@ -435,7 +435,7 @@ def forgot_password(req: PasswordResetRequest):
             )
             conn.commit()
             frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173').rstrip('/')
-            reset_url = f'{frontend_url}/reset-password?token={quote(raw_token)}'
+            reset_url = f'{frontend_url}/#/reset-password?token={quote(raw_token)}'
             try:
                 send_password_reset_email(row['email'], reset_url)
             except Exception as exc:

@@ -64,6 +64,12 @@ npm run dev
 
 Open the Vite URL shown in the terminal, normally http://localhost:5173.
 
+### Publish the frontend on GitHub Pages
+
+The `Deploy website to GitHub Pages` workflow builds the frontend and deploys it when changes are pushed to `main`. In the repository settings, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The project site URL is `https://esanduinduwara.github.io/-Travel--Aurelia-Travel-prototype-work/`.
+
+GitHub Pages hosts the static frontend only. The FastAPI backend must be deployed separately for login, password reset, destination updates, and enquiry submission to work. Set the repository Actions variable `VITE_API_URL` to the deployed API URL ending in `/api`; configure that API's CORS to allow the GitHub Pages origin. For password reset emails, set the backend's `FRONTEND_URL` to the full Pages URL above.
+
 ## Where enquiries are stored
 Every enquiry submitted through the website is stored in:
 
