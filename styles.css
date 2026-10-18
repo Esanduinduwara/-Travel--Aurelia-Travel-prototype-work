@@ -44,6 +44,8 @@
 .auth-submit{width:100%;background:var(--ink);color:#fff;padding:16px 24px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px;border:0;cursor:pointer;margin-top:12px;transition:background .2s ease}
 .auth-submit:hover:not(:disabled){background:#2e2e2a}
 .auth-submit:disabled{opacity:.6;cursor:not-allowed}
+.auth-forgot-link{text-align:right;margin:-12px 0 16px;font-size:12px}
+.auth-forgot-link a{color:#555;text-decoration:underline}
 .auth-divider{display:flex;align-items:center;margin:28px 0;color:#aaa;font-size:11px;letter-spacing:.1em;text-transform:uppercase}
 .auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--line)}
 .auth-divider span{padding:0 14px}

@@ -245,6 +245,7 @@ function useAuth() {
 function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -281,6 +282,10 @@ function LoginPage() {
         <p className="eyebrow auth-eyebrow">WELCOME BACK</p>
         <h1>Sign In</h1>
         <p>Access your personalized travel portfolio and direct correspondence.</p>
+
+        {location.state?.passwordReset && (
+          <div className="auth-success"><CheckCircle2 size={17} /><span>Password updated. Sign in with your new password.</span></div>
+        )}
 
         {error && (
           <div className="auth-error">
@@ -326,6 +331,8 @@ function LoginPage() {
             </div>
           </div>
 
+          <div className="auth-forgot-link"><Link to="/forgot-password">Forgot password?</Link></div>
+
           <button type="submit" className="auth-submit" disabled={submitting}>
             {submitting ? 'Authenticating...' : <><span>Enter Atelier</span> <ArrowUpRight size={15} /></>}
           </button>
@@ -342,6 +349,113 @@ function LoginPage() {
         <div className="auth-link-secondary">
           <Link to="/admin-signup">Staff &amp; Executive Access</Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ForgotPasswordPage() {
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    setSuccess('');
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Could not send the reset email.');
+      setSuccess(data.message);
+    } catch (err) {
+      setError(err.message || 'Could not send the reset email.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <p className="eyebrow auth-eyebrow">ACCOUNT ACCESS</p>
+        <h1>Reset your password</h1>
+        <p>Enter the email address on your account and we’ll send you a secure reset link.</p>
+        {error && <div className="auth-error"><AlertCircle size={16} /><span>{error}</span></div>}
+        {success && <div className="auth-success"><CheckCircle2 size={17} /><span>{success}</span></div>}
+        <form onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label htmlFor="reset-email">Email Address</label>
+            <input id="reset-email" type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+          </div>
+          <button type="submit" className="auth-submit" disabled={submitting}>
+            {submitting ? 'Sending...' : <>Send reset link <ArrowUpRight size={15} /></>}
+          </button>
+        </form>
+        <div className="auth-link"><Link to="/login">Return to sign in</Link></div>
+      </div>
+    </div>
+  );
+}
+
+function ResetPasswordPage() {
+  const token = new URLSearchParams(window.location.search).get('token') || '';
+  const navigate = useNavigate();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError('');
+    if (password.length < 8) return setError('Password must contain at least 8 characters.');
+    if (password !== confirmPassword) return setError('Passwords do not match.');
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${API}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'This reset link is invalid or expired.');
+      navigate('/login', { replace: true, state: { passwordReset: true } });
+    } catch (err) {
+      setError(err.message || 'Could not reset your password.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <div className="auth-card">
+        <p className="eyebrow auth-eyebrow">ACCOUNT ACCESS</p>
+        <h1>Choose a new password</h1>
+        <p>Your new password must be at least 8 characters long.</p>
+        {!token && <div className="auth-error"><AlertCircle size={16} /><span>This reset link is missing its token. Request a new link.</span></div>}
+        {error && <div className="auth-error"><AlertCircle size={16} /><span>{error}</span></div>}
+        <form onSubmit={handleSubmit}>
+          <div className="auth-field">
+            <label htmlFor="new-password">New Password</label>
+            <input id="new-password" type="password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" />
+          </div>
+          <div className="auth-field">
+            <label htmlFor="confirm-new-password">Confirm Password</label>
+            <input id="confirm-new-password" type="password" required minLength={8} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} autoComplete="new-password" />
+          </div>
+          <button type="submit" className="auth-submit" disabled={submitting || !token}>
+            {submitting ? 'Updating...' : <>Update password <ArrowUpRight size={15} /></>}
+          </button>
+        </form>
+        <div className="auth-link"><Link to="/forgot-password">Request another reset link</Link></div>
       </div>
     </div>
   );
@@ -2368,6 +2482,8 @@ function App() {
             element={<StoryRouteWrapper onPlan={planJourney} />}
           />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/admin-signup" element={<AdminSignupPage />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
