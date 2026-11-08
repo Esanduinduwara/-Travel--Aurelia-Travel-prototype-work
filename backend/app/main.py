@@ -45,7 +45,6 @@ def load_local_env() -> None:
 load_local_env()
 
 # Configuration & Constants
-ADMIN_INVITE_CODE = os.environ.get('ADMIN_INVITE_CODE', 'AURELIA-ADMIN-2026')
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
@@ -303,27 +302,46 @@ def require_admin(user: dict = Depends(get_current_user)) -> dict:
         )
     return user
 
+def seed_admin_account() -> None:
+    """Create or update the single admin account from ADMIN_EMAIL / ADMIN_PASSWORD.
+
+    Set both in the host's secret environment (or backend/.env locally). The
+    password is never stored in the repository. Restarting the service re-applies
+    the password from the environment, so changing the variable changes the login.
+    """
+    email = (os.environ.get('ADMIN_EMAIL') or '').strip().lower()
+    password = os.environ.get('ADMIN_PASSWORD') or ''
+    if not email or not password:
+        logger.warning('ADMIN_EMAIL or ADMIN_PASSWORD not set; no admin account seeded')
+        return
+    if len(password) < 8:
+        raise RuntimeError('ADMIN_PASSWORD must be at least 8 characters long')
+    conn = get_db()
+    try:
+        row = conn.execute('SELECT id FROM users WHERE email = ?', (email,)).fetchone()
+        hashed = hash_password(password)
+        if row:
+            conn.execute(
+                'UPDATE users SET password_hash = ?, role = ? WHERE id = ?',
+                (hashed, 'admin', row['id']),
+            )
+        else:
+            conn.execute(
+                'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                (str(uuid.uuid4()), email, hashed, 'Aurelia', 'Admin', 'admin', datetime.now(timezone.utc).isoformat()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+seed_admin_account()
+
 # Pydantic Request Models
 class SignupRequest(BaseModel):
     email: str
     password: str
     first_name: str
     last_name: str
-
-    @field_validator('email')
-    @classmethod
-    def validate_email(cls, value: str):
-        value = value.strip().lower()
-        if '@' not in value or '.' not in value.rsplit('@', 1)[-1]:
-            raise ValueError('Enter a valid email address')
-        return value
-
-class AdminSignupRequest(BaseModel):
-    email: str
-    password: str
-    first_name: str
-    last_name: str
-    invite_code: str
 
     @field_validator('email')
     @classmethod
@@ -565,42 +583,6 @@ def signup(req: SignupRequest):
                 'first_name': req.first_name,
                 'last_name': req.last_name,
                 'role': 'customer'
-            }
-        }
-    finally:
-        conn.close()
-
-@app.post('/api/auth/admin-signup')
-def admin_signup(req: AdminSignupRequest):
-    if req.invite_code != ADMIN_INVITE_CODE:
-        raise HTTPException(status_code=403, detail='Invalid admin invite code')
-    if len(req.password) < 8:
-        raise HTTPException(status_code=400, detail='Password must be at least 8 characters long')
-    
-    conn = get_db()
-    try:
-        cursor = conn.cursor()
-        cursor.execute('SELECT id FROM users WHERE email = ?', (req.email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail='Email is already registered')
-        
-        user_id = str(uuid.uuid4())
-        hashed = hash_password(req.password)
-        now = datetime.now(timezone.utc).isoformat()
-        
-        cursor.execute(
-            'INSERT INTO users (id, email, password_hash, first_name, last_name, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (user_id, req.email, hashed, req.first_name, req.last_name, 'admin', now)
-        )
-        conn.commit()
-        return {
-            'message': 'Admin account created successfully',
-            'user': {
-                'id': user_id,
-                'email': req.email,
-                'first_name': req.first_name,
-                'last_name': req.last_name,
-                'role': 'admin'
             }
         }
     finally:

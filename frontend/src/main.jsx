@@ -211,19 +211,6 @@ function AuthProvider({ children }) {
     return data;
   };
 
-  const adminSignup = async (formData) => {
-    const res = await fetch(`${API}/auth/admin-signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || data.detail || 'Administrative registration failed');
-    }
-    return data;
-  };
-
   const logout = () => {
     localStorage.removeItem('aurelia_token');
     setToken(null);
@@ -231,7 +218,7 @@ function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, adminSignup, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -346,9 +333,6 @@ function LoginPage() {
           New to Aurelia? <Link to="/signup">Begin your membership</Link>
         </div>
 
-        <div className="auth-link-secondary">
-          <Link to="/admin-signup">Staff &amp; Executive Access</Link>
-        </div>
       </div>
     </div>
   );
@@ -636,213 +620,6 @@ function SignupPage() {
 
         <div className="auth-link">
           Already have an account? <Link to="/login">Sign in here</Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* Component: AdminSignupPage */
-function AdminSignupPage() {
-  const { adminSignup, user } = useAuth();
-  const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    password: '',
-    confirm_password: '',
-    invite_code: '',
-  });
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (user?.role === 'admin') {
-      navigate('/admin', { replace: true });
-    }
-  }, [user, navigate]);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-
-    if (formData.password.length < 8) {
-      setError('Password must contain at least 8 characters.');
-      return;
-    }
-
-    if (formData.password !== formData.confirm_password) {
-      setError('Passwords do not match.');
-      return;
-    }
-
-    if (!formData.invite_code.trim()) {
-      setError('Administrative invite code is required.');
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const res = await adminSignup({
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        password: formData.password,
-        invite_code: formData.invite_code.trim(),
-      });
-      setSuccess(res.message || 'Executive credentials verified! You can now log in.');
-    } catch (err) {
-      setError(err.message || 'Authorization failed. Please verify your invite code.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <p className="eyebrow auth-eyebrow">RESTRICTED PORTAL</p>
-        <h1>Admin Onboarding</h1>
-        <p>Curator and management authorization portal for Aurelia Atelier.</p>
-
-        <div className="auth-notice">
-          <Shield size={18} style={{ color: '#c5a059', flexShrink: 0, marginTop: 2 }} />
-          <span>
-            <strong>Authorization Required:</strong> Registration requires an authorized executive invite code issued by Aurelia Atelier.
-          </span>
-        </div>
-
-        {error && (
-          <div className="auth-error">
-            <AlertCircle size={16} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {success ? (
-          <div>
-            <div className="auth-success">
-              <CheckCircle2 size={18} />
-              <span>{success}</span>
-            </div>
-            <Link to="/login" className="auth-submit" style={{ textDecoration: 'none' }}>
-              Proceed to Sign In <ArrowUpRight size={15} />
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit}>
-            <div className="two">
-              <div className="auth-field">
-                <label htmlFor="admin_first_name">First Name</label>
-                <input
-                  id="admin_first_name"
-                  name="first_name"
-                  type="text"
-                  required
-                  value={formData.first_name}
-                  onChange={handleChange}
-                  placeholder="e.g. Aurelia"
-                />
-              </div>
-              <div className="auth-field">
-                <label htmlFor="admin_last_name">Last Name</label>
-                <input
-                  id="admin_last_name"
-                  name="last_name"
-                  type="text"
-                  required
-                  value={formData.last_name}
-                  onChange={handleChange}
-                  placeholder="e.g. Director"
-                />
-              </div>
-            </div>
-
-            <div className="auth-field">
-              <label htmlFor="admin_email">Staff Email</label>
-              <input
-                id="admin_email"
-                name="email"
-                type="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="e.g. director@aureliatravel.com"
-                autoComplete="email"
-              />
-            </div>
-
-            <div className="auth-field">
-              <label htmlFor="admin_invite">Invite Code</label>
-              <input
-                id="admin_invite"
-                name="invite_code"
-                type="text"
-                required
-                value={formData.invite_code}
-                onChange={handleChange}
-                placeholder="Enter secret invite authorization code"
-              />
-            </div>
-
-            <div className="auth-field">
-              <label htmlFor="admin_password">Password (8+ chars)</label>
-              <div className="auth-input-wrapper">
-                <input
-                  id="admin_password"
-                  name="password"
-                  type={showPass ? 'text' : 'password'}
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Set account password"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPass(!showPass)}
-                  aria-label={showPass ? 'Hide password' : 'Show password'}
-                >
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-
-            <div className="auth-field">
-              <label htmlFor="admin_confirm_password">Confirm Password</label>
-              <input
-                id="admin_confirm_password"
-                name="confirm_password"
-                type={showPass ? 'text' : 'password'}
-                required
-                value={formData.confirm_password}
-                onChange={handleChange}
-                placeholder="Repeat account password"
-                autoComplete="new-password"
-              />
-            </div>
-
-            <button type="submit" className="auth-submit" disabled={submitting}>
-              {submitting ? 'Verifying Authorization...' : <><span>Authorize &amp; Register</span> <ArrowUpRight size={15} /></>}
-            </button>
-          </form>
-        )}
-
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
-
-        <div className="auth-link">
-          Existing administrator? <Link to="/login">Sign in here</Link>
         </div>
       </div>
     </div>
@@ -2486,7 +2263,6 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/signup" element={<SignupPage />} />
-          <Route path="/admin-signup" element={<AdminSignupPage />} />
           <Route path="/dashboard" element={<CustomerDashboard />} />
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />

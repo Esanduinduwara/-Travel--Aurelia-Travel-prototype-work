@@ -4,6 +4,8 @@ import tempfile
 # Must be set before app.main is imported so tests never touch backend/data.
 os.environ['AURELIA_DATA_DIR'] = tempfile.mkdtemp(prefix='aurelia-test-')
 os.environ['CORS_ORIGINS'] = 'https://aurelia.example.pages.dev'
+os.environ['ADMIN_EMAIL'] = 'admin-test@example.com'
+os.environ['ADMIN_PASSWORD'] = 'Admin-Test#1234'
 os.environ.pop('SMTP_HOST', None)
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -58,9 +60,24 @@ def test_signup_rejects_short_password_and_bad_email():
     assert r.status_code == 422
 
 
-def test_admin_signup_requires_invite_code():
-    body = {'email': 'boss@example.com', 'password': 'password123', 'first_name': 'A', 'last_name': 'B', 'invite_code': 'wrong'}
-    assert client.post('/api/auth/admin-signup', json=body).status_code == 403
+def test_admin_account_seeded_from_env_and_can_log_in():
+    r = login('admin-test@example.com', 'Admin-Test#1234')
+    assert r.status_code == 200
+    assert r.json()['user']['role'] == 'admin'
+    assert login('admin-test@example.com', 'wrong-password').status_code == 401
+    assert client.get('/api/admin/users', headers={'Authorization': f"Bearer {r.json()['token']}"}).status_code == 200
+
+
+def test_admin_signup_endpoint_removed():
+    body = {'email': 'boss@example.com', 'password': 'password123', 'first_name': 'A', 'last_name': 'B', 'invite_code': 'x'}
+    assert client.post('/api/auth/admin-signup', json=body).status_code == 404
+
+
+def test_public_signup_always_creates_customer():
+    body = {'email': 'sneaky@example.com', 'password': 'password123', 'first_name': 'A', 'last_name': 'B', 'role': 'admin'}
+    r = client.post('/api/auth/signup', json=body)
+    assert r.status_code == 200
+    assert r.json()['user']['role'] == 'customer'
 
 
 def test_customer_messages_flow():

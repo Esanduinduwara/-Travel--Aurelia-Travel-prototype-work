@@ -55,7 +55,8 @@ The repository root contains `render.yaml`, a Render Blueprint that describes th
 
    | Variable | Value | Notes |
    |---|---|---|
-   | `ADMIN_INVITE_CODE` | a long random string | Required to create admin accounts. Do not keep the default. |
+   | `ADMIN_EMAIL` | your admin login email | The only admin account. Created at startup. |
+   | `ADMIN_PASSWORD` | a strong password (8+ characters) | Keep it secret. Set it in Render only, never in the repository. |
    | `CORS_ORIGINS` | `https://YOUR-PROJECT.pages.dev` | Your Cloudflare Pages URL (see step 2). Add your custom domain too if you use one, comma-separated, no trailing slash. |
    | `FRONTEND_URL` | `https://YOUR-PROJECT.pages.dev` | Used to build the password reset link. Same as the site URL. |
    | `SMTP_USER` | your sender address | e.g. `you@gmail.com` |
@@ -130,7 +131,7 @@ Run through these checks in order:
 5. **Enquiry:** submit the enquiry form. You should see a confirmation message.
 6. **Sign up and sign in:** create an account, then sign in.
 7. **Password reset:** request a reset. The email should arrive, and the link should open the site's reset page (`…/#/reset-password?token=…`). Set a new password, then sign in with it.
-8. **Admin:** create an admin account with the invite code you set as `ADMIN_INVITE_CODE`, then open the admin area.
+8. **Admin:** on the login page, sign in with `ADMIN_EMAIL` and `ADMIN_PASSWORD`. You are taken to `/admin`. There is no admin sign-up page; public sign-up creates customer accounts only.
 
 If a step fails, see the troubleshooting section below.
 
@@ -147,7 +148,7 @@ If a step fails, see the troubleshooting section below.
 | Reset email fails (503 "Could not send") | Wrong SMTP login | Check the App Password and that 2-Step Verification is on. Check Render logs for the exception. |
 | Reset link goes to the wrong host | `FRONTEND_URL` is wrong | Set it to the live site URL. |
 | Data disappears after redeploy | Disk not attached | Confirm the disk `aurelia-data` is mounted at `/var/data` (**Render → aurelia-api → Disks**). |
-| Admin signup says "Invalid admin invite code" | `ADMIN_INVITE_CODE` differs from what you typed | Use the value set on Render. |
+| Admin login fails | `ADMIN_EMAIL` / `ADMIN_PASSWORD` not set or wrong | Set them on Render, then restart the service. The password is re-applied at startup. |
 
 ---
 
@@ -162,7 +163,7 @@ The repository also contains `.github/workflows/pages.yml`, which publishes the 
 
 ## 7. Security checklist before going live
 
-- [ ] `ADMIN_INVITE_CODE` is set to a long random value (not the default `AURELIA-ADMIN-2026`).
+- [ ] `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set on Render with a strong password.
 - [ ] `SMTP_PASSWORD` is only in Render's secret environment variables, never committed.
 - [ ] `CORS_ORIGINS` lists only your real site origins.
 - [ ] The backend is served over HTTPS (Render does this by default).
