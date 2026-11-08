@@ -58,6 +58,18 @@ npm run dev
 
 Open the Vite URL shown in the terminal, normally http://localhost:5173.
 
+### Run the tests
+
+```bash
+cd backend
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q tests
+```
+
+### Deploy (Cloudflare Pages + Render)
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for step-by-step instructions. `render.yaml` at the repository root defines the API service.
+
 ### Publish the frontend on GitHub Pages
 
 The `Deploy website to GitHub Pages` workflow builds the frontend and deploys it when changes are pushed to `main`. In the repository settings, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. The project site URL is `https://esanduinduwara.github.io/-Travel--Aurelia-Travel-prototype-work/`.
