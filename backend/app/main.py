@@ -49,8 +49,11 @@ ADMIN_INVITE_CODE = os.environ.get('ADMIN_INVITE_CODE', 'AURELIA-ADMIN-2026')
 ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 
-DATA = Path(__file__).resolve().parent.parent / 'data'
-DATA.mkdir(exist_ok=True)
+DATA = Path(os.environ.get('AURELIA_DATA_DIR') or Path(__file__).resolve().parent.parent / 'data')
+DATA.mkdir(parents=True, exist_ok=True)
+
+DEFAULT_CORS_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000'
+CORS_ORIGINS = [o.strip().rstrip('/') for o in os.environ.get('CORS_ORIGINS', DEFAULT_CORS_ORIGINS).split(',') if o.strip()]
 
 def get_secret_key() -> str:
     configured_key = os.environ.get('SECRET_KEY')
@@ -84,13 +87,7 @@ security = HTTPBearer(auto_error=False)
 app = FastAPI(title='Aurelia Travel API', version='1.0.0')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'http://localhost:5173',
-        'http://127.0.0.1:5173',
-        'http://localhost:5174',
-        'http://127.0.0.1:5174',
-        'http://localhost:3000',
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],
